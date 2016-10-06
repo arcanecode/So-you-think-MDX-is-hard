@@ -1,0 +1,1179 @@
+/*
+  This script is part of the presentation "So you think MDX is hard?"
+  Developed and presented by Robert C. Cain, MVP
+  http://arcanecode.com | @ArcaneCode | arcane@arcanetc.com
+
+
+*/
+
+
+// Some housekeeping
+
+// Double slashes are the "official" way of doing MDX Commenting
+-- SQL Server also supports double dashes
+/* The slash asterisk version is also supported */
+
+/*
+  It also works on mulitple lines
+*/
+
+
+/*---------------------------------------------------------------------------*/
+/* Individual Cells                                                          */
+/*---------------------------------------------------------------------------*/
+
+
+// Get a measure from the cube
+SELECT FROM [Wide World Importers]; 
+
+            
+// Get a specific measure
+SELECT FROM [Wide World Importers]
+ WHERE ([Measures].[Sales Quantity]);
+
+
+
+
+
+// Show using the attribute Name instead of the Key
+SELECT FROM [Wide World Importers]
+ WHERE ( [Measures].[Sales Quantity]
+       , [City].[State Province].[Alabama]
+       );
+
+
+
+
+// Expand the tuple to 3 dimensions.
+// Also note for attributes not based on surrogate key, the name and key are the same
+// (contrast with next example)
+SELECT FROM [Wide World Importers]
+ WHERE ( [Measures].[Sales Quantity]
+       , [City].[State Province].[Alabama]
+       , [Customer].[Category].&[Novelty Shop]   // With &
+       );
+       
+SELECT FROM [Wide World Importers]
+ WHERE ( [Measures].[Sales Quantity]
+       , [City].[State Province].[Alabama]
+       , [Customer].[Category].[Novelty Shop]   // With &
+       );
+
+// Composite Keys
+SELECT [Measures].[Sales Quantity]
+       ON COLUMNS 
+     , [Invoice Date].[Calendar].[Month].&[2015]&[3]
+       ON ROWS
+  FROM [Wide World Importers];
+
+// Must use keys for composite, values don't work
+SELECT [Measures].[Sales Quantity]
+       ON COLUMNS 
+     , [Invoice Date].[Calendar].[Month].[2015][March]
+       ON ROWS
+  FROM [Wide World Importers];
+
+
+/*---------------------------------------------------------------------------*/
+/* Sets of Cells                                                             */
+/*---------------------------------------------------------------------------*/
+
+// Move to results on columns
+SELECT [Measures].[Sales Quantity]
+    ON COLUMNS 
+  FROM [Wide World Importers];
+
+
+
+
+// Show same measure in the Where
+SELECT 
+  FROM [Wide World Importers]
+ WHERE [Measures].[Sales Quantity];
+
+
+
+
+
+// Return 2 dimensions on columns and rows. 
+// Also point out the Members function
+SELECT [Measures].[Sales Quantity] 
+       ON COLUMNS
+     , [City].[State Province].Members 
+       ON ROWS
+  FROM [Wide World Importers];
+
+// Create a pivot chart by making a tuple on columns
+SELECT ( [Measures].[Sales Quantity] 
+       , [Invoice Date].[Year].Members
+       )
+       ON COLUMNS
+     , [City].[State Province].Members 
+       ON ROWS
+  FROM [Wide World Importers];
+
+SELECT [City].[State Province].Members 
+       ON ROWS
+     , 
+       ( [Measures].[Sales Quantity] 
+       , [Invoice Date].[Year].Members
+       )
+       ON COLUMNS
+  FROM [Wide World Importers];
+
+SELECT [City].[State Province].Members 
+       ON ROWS
+  FROM [Wide World Importers];
+
+// Can't have rows without columns, however you can trick it by using an empty set
+// Use empty set for rows only
+SELECT {}
+       ON COLUMNS
+     , [City].[State Province].Members 
+       ON ROWS
+  FROM [Wide World Importers];
+
+
+// Sets use { }, and are needed when you want to return multiple
+// items from the same dimension
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS
+     , [City].[State Province].Members 
+	   ON ROWS
+  FROM [Wide World Importers];
+
+
+
+
+// Use NON EMPTY to remove empty values from the results
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS
+     , NON EMPTY 
+	   [City].[State Province].Members 
+	   ON ROWS
+  FROM [Wide World Importers];
+
+/* Note that NON EMPTY is the last thing to be done on a result set.
+   Thus queries that have a huge number of empty cells could still run
+   slow even though the returned resultset is small. 
+*/
+
+
+
+
+// Combine Rows/Cols with a Where clause
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS
+     , NON EMPTY [City].[State Province].Members 
+	   ON ROWS
+  FROM [Wide World Importers]
+ WHERE [Stock Item].[Color].&[Black];
+
+// Combine the set inside a tuple to create a pivot table
+SELECT ( [Invoice Date].[Year].Members
+         ,  
+         { [Measures].[Sales Quantity]
+         , [Measures].[Sales Total Excluding Tax]
+         } 
+       ) ON COLUMNS 
+       , NON EMPTY 
+	     [City].[State Province].Members  
+	     ON ROWS
+  FROM [Wide World Importers]
+ WHERE [Stock Item].[Color].&[Black];
+
+// Scrolling to the right you will see empty columns
+// NON EMPTY can be used on both rows and columns
+SELECT NON EMPTY
+       ( [Invoice Date].[Year].Members
+         ,  
+         { [Measures].[Sales Quantity]
+         , [Measures].[Sales Total Excluding Tax]
+         } 
+       ) ON COLUMNS 
+       , NON EMPTY 
+	     [City].[State Province].Members  
+	     ON ROWS
+  FROM [Wide World Importers]
+ WHERE [Stock Item].[Color].&[Black];
+
+// WHERE can contain a tuple
+SELECT ( [Invoice Date].[Year].Members
+         ,  
+         { [Measures].[Sales Quantity]
+         , [Measures].[Sales Total Excluding Tax]
+         } 
+       ) ON COLUMNS 
+       , NON EMPTY 
+	     [City].[State Province].Members  
+	     ON ROWS
+  FROM [Wide World Importers]
+ WHERE ( [Stock Item].[Color].&[Black]
+       , [Customer].[Category].&[Novelty Shop]
+       );
+
+
+
+// Show ALL is a stored member
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS 
+       , NON EMPTY 
+	     { [City].[State Province].[Alabama]            
+         , [City].[State Province].[Nevada]
+         , [City].[State Province].[All]
+         } ON ROWS
+  FROM [Wide World Importers];
+
+
+// Show States with ALL member
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS 
+       , NON EMPTY 
+         [City].[State Province].Members 
+         ON ROWS
+  FROM [Wide World Importers];
+
+// Show LEVEL, and how it excludes ALL
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS 
+       , NON EMPTY 
+         [City].[State Province].[State Province].Members 
+         ON ROWS
+  FROM [Wide World Importers];
+
+// The pivot again, with ALL excluded
+SELECT ( [Invoice Date].[Year].[Year].Members
+         ,  
+         { [Measures].[Sales Quantity]
+         , [Measures].[Sales Total Excluding Tax]
+         } 
+       ) ON COLUMNS 
+       , NON EMPTY 
+	     [City].[State Province].[State Province].Members 
+		 ON ROWS
+  FROM [Wide World Importers]
+ WHERE [Stock Item].[Color].&[Black];
+
+
+// Use Level + All to make All appear last in the results
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS 
+       , NON EMPTY 
+         { [City].[State Province].[State Province].Members 
+         , [City].[State Province].[All] 
+         } ON ROWS
+  FROM [Wide World Importers];
+
+// Pivot table revisited with ALL on the bottom
+SELECT ( [Invoice Date].[Year].[Year].Members
+       , { [Measures].[Sales Quantity]
+         , [Measures].[Sales Total Excluding Tax]
+         } 
+       ) ON COLUMNS 
+       , { [City].[State Province].[State Province].Members 
+         , [City].[State Province].[All] 
+         } ON ROWS
+  FROM [Wide World Importers];
+
+// In the previous example, scrolling all the way to the right reveals
+// blank columns. Show that Non Empty can be used on both rows and columns
+SELECT NON EMPTY
+       ( [Invoice Date].[Year].[Year].Members
+       , { [Measures].[Sales Quantity]
+         , [Measures].[Sales Total Excluding Tax]
+         } 
+       ) ON COLUMNS 
+       , NON EMPTY 
+         { [City].[State Province].[State Province].Members 
+         , [City].[State Province].[All] 
+         } ON ROWS
+  FROM [Wide World Importers];
+
+
+/*---------------------------------------------------------------------------*/
+/* MDX Functions                                                             */
+/*---------------------------------------------------------------------------*/
+
+// Children
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS 
+       , NON EMPTY 
+         [City].[Territories].Children        
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+
+// Children works with a specific item
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS 
+       , NON EMPTY 
+         [City].[Territories].[Americas].Children        
+         ON ROWS
+  FROM [Wide World Importers];
+
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS 
+       , NON EMPTY 
+	     [City].[Geography].[Country].[United States].Children        
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+// If a name is unique you can omit some levels 
+// (but not recommended)
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS 
+       , NON EMPTY 
+	     [City].[Geography].[United States].Children        
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+// Parent
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS 
+       , NON EMPTY 
+	     [City].[Geography].[City].[Tuscaloosa].Parent
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+// Mixing data from various levels
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS 
+       , NON EMPTY 
+         { [Invoice Date].[Calendar YM].[Month Year].&[201503].Parent
+         , [Invoice Date].[Calendar YM].[Month Year].&[201503]
+         , [Invoice Date].[Calendar YM].[Month Year].&[201503].Children
+         } ON ROWS
+  FROM [Wide World Importers];
+
+
+
+// Cousin
+SELECT [Measures].[Sales Quantity] ON COLUMNS 
+       , NON EMPTY 
+         Cousin ( [Invoice Date].[Calendar YM].[Month Year].&[201503]
+                , [Invoice Date].[Calendar YM].&[2014] 
+                )
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+
+// Mix two sets in a tuple
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS 
+       , NON EMPTY 
+         ( { [Invoice Date].[Calendar YM].[Month Year].&[201503].Parent
+           , [Invoice Date].[Calendar YM].[Month Year].&[201503]
+           , [Invoice Date].[Calendar YM].[Month Year].&[201503].Children
+           }
+           , [Stock Item].[Color].Members
+         ) ON ROWS
+  FROM [Wide World Importers];
+
+
+// PrevMember, Lag
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS 
+       , NON EMPTY 
+	     { [Invoice Date].[Calendar YM].[Month Year].&[201503].PrevMember
+         , [Invoice Date].[Calendar YM].[Month Year].&[201503].PrevMember.PrevMember
+         , [Invoice Date].[Calendar YM].[Month Year].&[201503].Lag(3)
+         }
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+
+
+
+// Lag into the future
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS 
+       , NON EMPTY 
+         [Invoice Date].[Calendar YM].[Month Year].&[201503].Lag(-3)
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+
+// Lead to the future
+SELECT { [Measures].[Sales Quantity]
+       , [Measures].[Sales Total Excluding Tax]
+       } ON COLUMNS 
+       , NON EMPTY 
+         [Invoice Date].[Calendar YM].[Month Year].&[201503].Lead(3)
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+// Typical Order
+SELECT [Measures].[Sales Quantity]
+         ON COLUMNS 
+       , NON EMPTY 
+	     ORDER ([Invoice Date].[Calendar YM].[Month Year].Members
+               , [Measures].[Sales Quantity]
+               , DESC) 
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+// Order with Hierarchy
+SELECT [Measures].[Sales Quantity]
+         ON COLUMNS 
+       , NON EMPTY 
+	     ORDER ([Invoice Date].[Calendar YM].Members
+               , [Measures].[Sales Quantity]
+               , DESC) 
+         ON ROWS
+  FROM [Wide World Importers];
+
+// Order with BDESC - Does descending but breaks the hierarcy lines
+SELECT [Measures].[Sales Quantity]
+         ON COLUMNS 
+       , NON EMPTY 
+	     ORDER ([Invoice Date].[Calendar YM].Members
+               , [Measures].[Sales Quantity]
+               , BDESC) 
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+// TopCount
+SELECT [Measures].[Sales Quantity]
+         ON COLUMNS 
+       , TOPCOUNT ([Customer].[Customer].[Customer].Members
+                  , 5
+                  , [Measures].[Sales Quantity]
+                  ) 
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+
+// TopPercent
+SELECT [Measures].[Sales Quantity]
+         ON COLUMNS 
+       , TOPPERCENT ([Customer].[Customer].[Customer].Members
+                    , 40
+                    , [Measures].[Sales Quantity]
+                    ) 
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+// BottomCount
+// Returns rows with all null data
+SELECT [Measures].[Sales Quantity]
+         ON COLUMNS 
+       , BOTTOMCOUNT ([Employee].[Employee].[Employee].Members
+                     , 5
+                     , [Measures].[Sales Quantity]
+                     ) 
+         ON ROWS
+  FROM [Wide World Importers];
+
+// NON EMPTY won't work, as it removes empty rows AFTER the set is created
+SELECT [Measures].[Sales Quantity]
+         ON COLUMNS 
+       , NON EMPTY
+	     BOTTOMCOUNT ([Employee].[Employee].[Employee].Members
+                     , 5
+                     , [Measures].[Sales Quantity]
+                     ) 
+         ON ROWS
+  FROM [Wide World Importers];
+
+// NONEMPTY function - Will filter out emptys first
+// No BottomCount will return the desired data
+SELECT [Measures].[Sales Quantity]
+         ON COLUMNS 
+       , BOTTOMCOUNT (NONEMPTY([Employee].[Employee].[Employee].Members
+                              , [Measures].[Sales Quantity]
+                              )
+                     , 5
+                     , [Measures].[Sales Quantity]
+                     ) 
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+// BottomPercent (with help from NonEmpty function)
+SELECT [Measures].[Sales Quantity]
+         ON COLUMNS 
+       , BOTTOMPERCENT (NONEMPTY([Employee].[Employee].[Employee].Members
+                                , [Measures].[Sales Quantity]
+                                )
+                       , 25
+                       , [Measures].[Sales Quantity]
+                       ) 
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+// CrossJoin 1 - Allows you to create a superset out of the 
+// join of two dimensions
+SELECT [Measures].[Sales Quantity]
+       ON COLUMNS 
+       , NON EMPTY 
+         CROSSJOIN ( [Invoice Date].[Calendar].[Year] // Assumes .Members
+                   , [Employee].[Employee].[Employee].Members       
+                   ) ON ROWS
+  FROM [Wide World Importers];
+
+// CrossJoin 2 - You can use a * as a shortcut
+SELECT [Measures].[Sales Quantity]
+       ON COLUMNS 
+       , NON EMPTY 
+         [Invoice Date].[Calendar].[Year] 
+         * [Employee].[Employee].[Employee].Members       
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+// CrossJoin with 3 sets
+SELECT [Measures].[Sales Quantity]
+       ON COLUMNS 
+       , NON EMPTY 
+         CROSSJOIN([Invoice Date].[Calendar].[Year] 
+                   , CROSSJOIN( [Employee].[Employee].[Employee].Members
+                              , [City].[State Province].Members
+                              )
+                   )
+         ON ROWS
+  FROM [Wide World Importers];
+
+// The * syntax is much easier to read when more than 2 sets are used
+SELECT [Measures].[Sales Quantity]
+       ON COLUMNS 
+       , NON EMPTY 
+         [Invoice Date].[Calendar].[Year] 
+         * [Employee].[Employee].[Employee].Members
+         * [City].[State Province].Members
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+// YTD - Year to date values broken out by the unit in YTD
+SELECT [Measures].[Sales Quantity]
+       ON COLUMNS 
+       , NON EMPTY 
+         YTD([Invoice Date].[Calendar].[Month].&[2013]&[08])
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+// More on YTD in a bit!
+
+
+
+// Sometimes YTD doesn't work. For example, you want to use it with
+// an alternate date calendar such as fiscal year. In that case you
+// can use PeriodsToDate. First parameter is the time frame (year)
+// second is the starting point to go back from (quarter 3 2013)
+SELECT [Measures].[Sales Quantity]
+       ON COLUMNS 
+       , NON EMPTY 
+         PeriodsToDate( [Invoice Date].[Fiscal Calendar].[Fiscal Year]
+                      , [Invoice Date].[Fiscal Calendar].[Fiscal Month].&[2015]&[08]
+                      )
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+
+
+/*---------------------------------------------------------------------------*/
+/* Calculations                                                              */
+/*---------------------------------------------------------------------------*/
+
+// Use with to begin building a calc
+WITH
+  MEMBER [Measures].[Profit] AS null
+SELECT { [Measures].[Sales Total Excluding Tax]
+       , [Measures].[Sales Unit Price]
+       , [Measures].[Profit] 
+       } ON COLUMNS 
+       , NON EMPTY [Stock Item].[Stock Item].[Stock Item].Members 
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+
+
+// Adding to the calc
+WITH
+  MEMBER [Measures].[Profit] AS 
+    [Measures].[Sales Total Excluding Tax]
+      - [Measures].[Sales Unit Price]
+SELECT { [Measures].[Sales Total Excluding Tax]
+       , [Measures].[Sales Unit Price]
+       , [Measures].[Profit] 
+       } ON COLUMNS 
+       , NON EMPTY [Stock Item].[Stock Item].[Stock Item].Members 
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+
+// More on the calc
+WITH
+  MEMBER [Measures].[Profit] AS 
+    ([Measures].[Sales Total Excluding Tax]
+      - [Measures].[Sales Unit Price]
+	) / [Measures].[Sales Total Excluding Tax]
+SELECT { [Measures].[Sales Total Excluding Tax]
+       , [Measures].[Sales Unit Price]
+       , [Measures].[Profit] 
+       } ON COLUMNS 
+       , NON EMPTY [Stock Item].[Stock Item].[Stock Item].Members 
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+
+
+
+// Format the calc result
+WITH
+  MEMBER [Measures].[Profit] AS 
+    ([Measures].[Sales Total Excluding Tax]
+      - [Measures].[Sales Unit Price]
+	) / [Measures].[Sales Total Excluding Tax]
+    , format_string='Percent'  //0.00%
+SELECT { [Measures].[Sales Total Excluding Tax]
+       , [Measures].[Sales Unit Price]
+       , [Measures].[Profit] 
+       } ON COLUMNS 
+       , NON EMPTY [Stock Item].[Stock Item].[Stock Item].Members 
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+// Handle divide by zero
+WITH
+  MEMBER [Measures].[Profit] AS 
+  IIF(  ISEMPTY( [Measures].[Sales Total Excluding Tax] )
+             OR  [Measures].[Sales Total Excluding Tax] = 0
+      , NULL
+      , ( [Measures].[Sales Total Excluding Tax]
+        - [Measures].[Sales Unit Price]
+ 	    ) / [Measures].[Sales Total Excluding Tax]
+    )
+    , format_string='Percent'
+SELECT { [Measures].[Sales Total Excluding Tax]
+       , [Measures].[Sales Unit Price]
+       , [Measures].[Profit] 
+       } ON COLUMNS 
+       , NON EMPTY [Stock Item].[Stock Item].[Stock Item].Members 
+         ON ROWS
+  FROM [Wide World Importers];
+
+// Multiple Members
+WITH
+  MEMBER [Measures].[SalesDiff] AS
+    [Measures].[Sales Total Excluding Tax]
+        - [Measures].[Sales Unit Price]
+    , format_string='$#,##0.00;($#,##0.00)'
+  MEMBER [Measures].[Profit] AS 
+  IIF(  ISEMPTY( [Measures].[Sales Total Excluding Tax] )
+             OR  [Measures].[Sales Total Excluding Tax] = 0
+      , NULL
+      , [Measures].[SalesDiff] / [Measures].[Sales Total Excluding Tax]
+    )
+    , format_string='Percent'
+SELECT { [Measures].[Sales Total Excluding Tax]
+       , [Measures].[Sales Unit Price]
+	   , [Measures].[SalesDiff]
+       , [Measures].[Profit] 
+       } ON COLUMNS 
+       , NON EMPTY [Stock Item].[Stock Item].[Stock Item].Members 
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+
+
+// Detour: YTD Revisited
+// Getting YTD total at a certain time point
+// Aggregate takes the result set and sums it up 
+
+WITH MEMBER [Invoice Date].[Calendar].[Month201508] AS
+  Aggregate (
+              YTD([Invoice Date].[Calendar].[Month].&[2015]&[08])
+		    )
+SELECT [Invoice Date].[Calendar].[Month201508] 
+       ON COLUMNS
+	 , [Stock Item].[Stock Item].[Stock Item].Members 
+	   ON ROWS
+FROM
+    [Wide World Importers]
+WHERE
+  [Measures].[Sales Quantity];
+
+
+// Compare this YTD with Previous YTD
+WITH MEMBER [Measures].[Current YTD] AS
+  SUM( YTD([Order Date].[Calendar].CurrentMember)
+     , [Measures].[Internet Sales Amount]
+     )
+MEMBER [Measures].[Last YTD] AS 
+  SUM(YTD(ParallelPeriod([Order Date].[Calendar].[Year]
+                        , 1
+                        , [Order Date].[Calendar].CurrentMember
+                        )
+          )
+      , [Measures].[Internet Sales Amount] 
+      )
+SELECT { [Measures].[Current YTD]
+       , [Measures].[Last YTD]
+       } ON COLUMNS
+FROM [Wide World Importers]
+WHERE ([Order Date].[Calendar].[Date].&[20141028]);
+
+WITH MEMBER [Measures].[Current YTD] AS
+  SUM( YTD([Invoice Date].[Calendar].CurrentMember)
+     , [Measures].[Sales Quantity]
+     )
+MEMBER [Measures].[Last YTD] AS 
+  SUM(YTD(ParallelPeriod([Invoice Date].[Calendar].[Year]
+                        , 1
+                        , [Invoice Date].[Calendar].CurrentMember
+                        )
+          )
+      , [Measures].[Sales Quantity] 
+      )
+SELECT { [Measures].[Current YTD]
+       , [Measures].[Last YTD]
+       } ON COLUMNS
+FROM [Wide World Importers]
+WHERE ([Invoice Date].[Calendar].[Month].&[2015]&[08]);
+
+
+// Side Note: Aggregate vs Sum
+// Aggregate uses the Aggregation Type for the member 
+// i.e. SUM, AVG, etc
+// Aggregate has one caveat, it won't work on calculated members
+// for those, use the explicit aggregator, such as SUM
+
+
+// Compare this YTD with Previous YTD - for Today!
+// User StrToMember to dynamically calculate today's date
+// and convert it into a cube member
+// Also note commands and functions aren't case sensitive, i.e. SUM and Sum
+WITH MEMBER [Measures].[Current YTD] AS
+  SUM( YTD([Invoice Date].[Calendar].CurrentMember)
+     , [Measures].[Sales Quantity]
+     )
+MEMBER [Measures].[Last YTD] AS 
+  Sum(ytd(PARALLELPERIOD([Invoice Date].[Calendar].[Year]
+                        , 1
+                        , [Invoice Date].[Calendar].CurrentMember
+                        )
+          )
+      , [Measures].[Sales Quantity] 
+      )
+SELECT { [Measures].[Current YTD]
+       , [Measures].[Last YTD]
+       } ON COLUMNS
+FROM [Wide World Importers]
+WHERE (StrToMember("[Invoice Date].[Calendar].[Date].&[" 
+                  + FORMAT(NOW() , "yyyy-MM-dd") + "T00:00:00]"
+                  ) 
+      );
+      // [Invoice Date].[Calendar].[Date].&[20161011T00:00:00]
+
+// Moving Window - Last 7 days
+SELECT [Measures].[Sales Quantity] 
+       ON COLUMNS 
+       , NON EMPTY 
+       { StrToMember("[Invoice Date].[Calendar].[Date].&[" 
+                    + FORMAT(DATEADD("d", -6, NOW()) , "yyyy-MM-dd") + "T00:00:00]"
+                    ) 
+       : StrToMember("[Invoice Date].[Calendar].[Date].&[" 
+                    + FORMAT(NOW() , "yyyy-MM-dd") + "T00:00:00]"
+                    ) 
+       }  ON ROWS
+  FROM [Wide World Importers];
+
+//       { [Order Date].[Calendar].[Date].&[20161011]
+//       : [Order Date].[Calendar].[Date].&[20161005]
+//       }  ON ROWS
+
+
+/*---------------------------------------------------------------------------*/
+/* Sets                                                                      */
+/*---------------------------------------------------------------------------*/
+
+// Using TopCount to do a top 10 set
+// (Note, removed the IIF to simplify the query)
+WITH
+  MEMBER [Measures].[Profit] AS 
+    ([Measures].[Sales Total Excluding Tax]
+      - [Measures].[Sales Unit Price]
+	) / [Measures].[Sales Total Excluding Tax]
+    , format_string='Percent'  //0.00%
+  SET [Top 10 Products] AS
+    // Use the Dim.Attribute.Level syntax to remove the ALL 
+    // member, otherwise it would always be the top of the set.
+    //
+    // Top count needs 3 params the dim to slice by, how many 
+    // items do you want, and what do you want to sort the result on
+    TOPCOUNT ([Customer].[Customer].[Customer].Members
+             , 5
+             , [Measures].[Sales Quantity]
+             ) 
+SELECT { [Measures].[Sales Total Excluding Tax]
+       , [Measures].[Sales Unit Price]
+       , [Measures].[Profit] 
+       } ON COLUMNS 
+       , NON EMPTY [Top 10 Products] ON ROWS
+  FROM [Wide World Importers];
+
+WITH
+  MEMBER [Measures].[Profit] AS 
+    ([Measures].[Sales Total Excluding Tax]
+      - [Measures].[Sales Unit Price]
+	) / [Measures].[Sales Total Excluding Tax]
+    , format_string='Percent'  //0.00%
+  SET [Top 10 Ordered Products] AS
+    // Use the Dim.Attribute.Level syntax to remove the ALL 
+    // member, otherwise it would always be the top of the set.
+    //
+    // Top count needs 3 params the dim to slice by, how many 
+    // items do you want, and what do you want to sort the result on
+    ORDER( TOPCOUNT ([Customer].[Customer].[Customer].Members
+                  , 5
+                  , [Measures].[Sales Quantity]
+                  ) 
+         , [Measures].[Profit]
+         , ASC
+         ) 
+SELECT { [Measures].[Sales Total Excluding Tax]
+       , [Measures].[Sales Unit Price]
+       , [Measures].[Profit] 
+       } ON COLUMNS 
+       , NON EMPTY [Top 10 Ordered Products] ON ROWS
+  FROM [Wide World Importers];
+
+
+// Order
+WITH
+  MEMBER [Measures].[Profit] AS 
+    ([Measures].[Sales Total Excluding Tax]
+      - [Measures].[Sales Unit Price]
+	) / [Measures].[Sales Total Excluding Tax]
+    , format_string='Percent'  //0.00%
+  SET [Ordered Customers] AS
+    // To order without using TopCount, use ORDER 
+    // (Doesn't limit number of rows though)
+    ORDER ( [Customer].[Customer].[Customer].Members
+          , [Measures].[Profit]
+          , DESC
+          ) //ASC works too
+SELECT { [Measures].[Sales Total Excluding Tax]
+       , [Measures].[Sales Unit Price]
+       , [Measures].[Profit] 
+       } ON COLUMNS 
+       , NON EMPTY [Ordered Customers] ON ROWS
+  FROM [Wide World Importers];
+
+
+
+
+// Head
+WITH
+  MEMBER [Measures].[Profit] AS 
+    ([Measures].[Sales Total Excluding Tax]
+      - [Measures].[Sales Unit Price]
+	) / [Measures].[Sales Total Excluding Tax]
+    , format_string='Percent'  //0.00%
+  SET [Top 10 Head Customers] AS
+  // Use HEAD to limit rows returned
+  HEAD( ORDER ( [Customer].[Customer].[Customer].Members
+          , [Measures].[Profit]
+          , DESC
+          ) 
+      , 10
+      )
+SELECT { [Measures].[Sales Total Excluding Tax]
+       , [Measures].[Sales Unit Price]
+       , [Measures].[Profit] 
+       } ON COLUMNS 
+       , NON EMPTY [Top 10 Head Customers] ON ROWS
+  FROM [Wide World Importers];
+
+
+
+
+// Tail
+WITH
+  MEMBER [Measures].[Profit] AS 
+    ([Measures].[Sales Total Excluding Tax]
+      - [Measures].[Sales Unit Price]
+	) / [Measures].[Sales Total Excluding Tax]
+    , format_string='Percent'  //0.00%
+  SET [Bottom 10 Customers] AS
+  // Use HEAD to limit rows returned
+  TAIL( ORDER ( [Customer].[Customer].[Customer].Members
+          , [Measures].[Profit]
+          , DESC
+          )  // Need to use desc to get bottom 10
+      , 10
+      )
+SELECT { [Measures].[Sales Total Excluding Tax]
+       , [Measures].[Sales Unit Price]
+       , [Measures].[Profit] 
+       } ON COLUMNS 
+       , NON EMPTY [Bottom 10 Customers] ON ROWS
+  FROM [Wide World Importers];
+
+
+
+
+// Simple Filter
+SELECT [Measures].[Sales Total Excluding Tax] ON COLUMNS 
+       , NON EMPTY 
+         FILTER( [Customer].[Customer].[Customer].Members
+               , [Measures].[Sales Total Excluding Tax] > 375000
+               ) 
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+// Filter supports "and"ing
+SELECT [Measures].[Sales Total Excluding Tax] ON COLUMNS 
+     , NON EMPTY 
+       FILTER( [Customer].[Customer].[Customer].Members
+             , [Measures].[Sales Total Excluding Tax] > 375000
+		       AND
+			   [Measures].[Sales Total Excluding Tax] < 80000000
+             ) 
+       ON ROWS
+  FROM [Wide World Importers];
+
+
+// Using a filter against a dimension instead of a measure
+SELECT [Measures].[Sales Total Excluding Tax] ON COLUMNS 
+       , NON EMPTY FILTER( [Customer].[Customer].[Customer].Members
+                         , LEFT([Customer].[Customer].CurrentMember.Name, 4) = "Wing"
+                         ) 
+         ON ROWS
+  FROM [Wide World Importers];
+
+
+// Using filter to create a set
+WITH
+  SET [Filtered Customers] AS
+    // Include only products that match the critea, in this
+    // case the sales amount must be > 500,000
+    FILTER( [Customer].[Customer].[Customer].Members
+          , [Measures].[Sales Total Excluding Tax] > 375000
+          ) 
+SELECT [Measures].[Sales Total Excluding Tax] ON COLUMNS 
+       , NON EMPTY [Filtered Customers] ON ROWS
+  FROM [Wide World Importers];
+
+
+// Set for last 12 months
+WITH
+  SET [Last 12 Months] AS
+      TAIL( { NULL 
+              : 
+              StrToMember("[Invoice Date].[Month].&[" 
+                         + CSTR(YEAR(NOW() ) ) + "]"
+                         + "&[" + CSTR(MONTH( NOW() ) ) + "]"
+                         ) 
+            }
+            , 12
+          )
+SELECT {} ON COLUMNS
+     , [Last 12 Months] ON ROWS
+  FROM [Wide World Importers];
+
+WITH
+  SET [Last 12 Months] AS
+      TAIL( { NULL 
+              : 
+              StrToMember("[Invoice Date].[Month].&[" 
+                         + CSTR(YEAR(NOW() ) ) + "]"
+                         + "&[" + CSTR(MONTH( NOW() ) ) + "]"
+                         ) 
+            }
+            , 12
+          )
+SELECT [Measures].[Sales Total Excluding Tax] ON COLUMNS 
+       , NON EMPTY [Last 12 Months] ON ROWS
+  FROM [Wide World Importers];
+
+
+
+// Note on AllMember vs Member
+// Here we add a new member to the Product dimension
+// but when we query it, the calculated member doesn't
+// appear when we use the Member function
+WITH MEMBER [City].[State Province].[All Southeast] AS
+  [City].[State Province].[Alabama]
+  + [City].[State Province].[Georgia] 
+  + [City].[State Province].[Florida] 
+SELECT [Measures].[Sales Quantity] ON COLUMNS
+     , NON EMPTY
+       [City].[State Province].Members
+       ON ROWS
+  FROM [Wide World Importers];
+
+// To make calculated members appear use AllMembers
+WITH MEMBER [City].[State Province].[All Southeast] AS
+  [City].[State Province].[Alabama]
+  + [City].[State Province].[Georgia] 
+  + [City].[State Province].[Florida] 
+SELECT [Measures].[Sales Quantity] ON COLUMNS
+     , NON EMPTY
+       [City].[State Province].AllMembers
+       ON ROWS
+  FROM [Wide World Importers];
+
+
+
+
+// Dynamic Sets
+WITH
+  SET [Top 10 Customers Dynamic] AS
+      TOPCOUNT ([Customer].[Customer].[Customer].Members
+             , 10
+             , [Measures].[Sales Quantity]
+             ) 
+SELECT [Measures].[Sales Quantity] ON COLUMNS 
+     , NON EMPTY [Top 10 Customers Dynamic]  ON ROWS
+  FROM [Wide World Importers];
+
+//	                             Sales Quantity
+// Customer
+// Unknown	                         3,691,220
+// Tailspin Toys (Vidrine, LA)	        20,637
+// Wingtip Toys (Key Biscayne, FL)	    20,514
+// Wingtip Toys (Bourneville, OH)	    20,487
+// Wingtip Toys (West Frostproof, FL)	20,120
+// Tailspin Toys (North Crows Nest, IN)	20,051
+// Tailspin Toys (Sentinel Butte, ND)	20,042
+// Wingtip Toys (Accomac, VA)	        19,981
+// Tailspin Toys (Orrtanna, PA)	        19,926
+// Wingtip Toys (Jamison, IA)	        19,427
+
+// With Dynamic sets, adding a WHERE clause affects the
+// members being returned in the set.
+WITH
+  DYNAMIC SET [Top 10 Customers Dynamic] AS
+      TOPCOUNT ([Customer].[Customer].[Customer].Members
+             , 10
+             , [Measures].[Sales Quantity]
+             ) 
+SELECT [Measures].[Sales Quantity] ON COLUMNS 
+     , NON EMPTY [Top 10 Customers Dynamic]  ON ROWS
+  FROM [Wide World Importers]
+ WHERE [City].[State Province].[Alabama]
+;
+
+// With Static sets, the set is determined first, 
+// then filtered based on the Where clause
+WITH
+  STATIC SET [Top 10 Customers Static] AS
+      TOPCOUNT ([Customer].[Customer].[Customer].Members
+             , 10
+             , [Measures].[Sales Quantity]
+             ) 
+SELECT [Measures].[Sales Quantity] ON COLUMNS 
+     , NON EMPTY [Top 10 Customers Static]  ON ROWS
+  FROM [Wide World Importers]
+ WHERE [City].[State Province].[Alabama]
+;
+
+
+/*---------------------------------------------------------------------------*/
+/* Ranking                                                                   */
+/*---------------------------------------------------------------------------*/
+  
+// Rank
+WITH
+ SET [Southeast] AS
+ { [City].[State Province].[Alabama]
+ , [City].[State Province].[Florida]
+ , [City].[State Province].[Georgia]
+ }
+ MEMBER [Measures].[Ranking] AS
+   RANK( [City].[State Province].CurrentMember
+       , [City].[State Province].CurrentMember.Siblings
+       , [Measures].[Sales Quantity]
+       )
+ SELECT { [Measures].[Sales Quantity]
+        , [Measures].[Ranking]
+        } ON COLUMNS
+      , ORDER ( [Southeast]
+              , [Measures].[Ranking] 
+              , ASC
+              )
+        ON ROWS                  
+   FROM [Wide World Importers];
+
+
+
+
+
+/*---------------------------------------------------------------------------*/
+/* Captions                                                                  */
+/*---------------------------------------------------------------------------*/
+
+
+// Member Captions
+WITH 
+  MEMBER [Measures].[ParameterCaption] AS 
+    [City].[Geography].CurrentMember.Member_Caption 
+  MEMBER [Measures].[ParameterValue] AS 
+    [City].[Geography].CurrentMember.UniqueName 
+  MEMBER [Measures].[ParameterLevel] AS 
+    [City].[Geography].CurrentMember.Level.Ordinal 
+SELECT { [Measures].[ParameterCaption]
+       , [Measures].[ParameterValue]
+       , [Measures].[ParameterLevel]
+       } ON COLUMNS
+     , [City].[Geography].ALLMEMBERS ON ROWS
+FROM [Wide World Importers];
+
+
